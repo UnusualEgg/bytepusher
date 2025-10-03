@@ -9,7 +9,7 @@
 
 #define VM_SIZE 256
 
-inline SDL_FRect get_letterbox(int width, int height) {
+static inline SDL_FRect get_letterbox(int width, int height) {
     if (width>height) {
         //space sides out
         float space = (width-height)/2.0;
