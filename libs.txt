@@ -1,3 +1,10 @@
 get 3.x SDL3_ttf and install to SDl3_ttf/
-cmake -DCMAKE_INSTALL_PREFIX=../SDL3_ttf -B build -S . -DBUILD_SHARED_LIBS=OFF
 
+wget https://github.com/libsdl-org/SDL_ttf/archive/refs/tags/release-3.2.2.tar.gz
+tar xvf release-3.2.2.tar.gz;rm release-3.2.2.tar.gz;
+cd SDL_ttf-release-3.2.2/
+cmake -DCMAKE_INSTALL_PREFIX=../SDL3_ttf -B build -S . -DBUILD_SHARED_LIBS=OFF
+cd build
+make -j8
+make install
+cd ../..
