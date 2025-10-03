@@ -1,0 +1,3 @@
+get 3.x SDL3_ttf and install to SDl3_ttf/
+cmake -DCMAKE_INSTALL_PREFIX=../SDL3_ttf -B build -S . -DBUILD_SHARED_LIBS=OFF
+
