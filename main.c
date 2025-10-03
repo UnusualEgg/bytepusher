@@ -256,7 +256,7 @@ int main(int argc, char const *argv[]) {
                         if (e.key.down) {
                             mem[1] |= 1<<i;
                         } else {
-                            mem[1] &= ~(1<<(i-8));
+                            mem[1] &= ~(1<<i);
                         }
                     }
                 }
