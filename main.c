@@ -318,11 +318,6 @@ int main(int argc, char const *argv[]) {
                 size_t audio_addr = (((size_t)mem[6])<<16)|(((size_t)mem[6+1])<<8);
                 // printf("%lu\n",audio_addr);
                 SDL_PutAudioStreamData(stream,&mem[audio_addr],256);
-                result = SDL_FlushAudioStream(stream);
-                if (!result) {
-                    fprintf(stderr,"SDL Error: %s\n",SDL_GetError());
-                    return EXIT_FAILURE;
-                }
             }
         }
 
