@@ -148,12 +148,11 @@ int main(int argc, char const *argv[]) {
     }
 
     
-    const SDL_Keycode key_map[16] = {
-        SDLK_X,SDLK_1,SDLK_2,SDLK_3,
-        SDLK_Q,SDLK_W,SDLK_E,SDLK_A,
-        SDLK_A,SDLK_S,SDLK_D,SDLK_Z,
-        SDLK_C,SDLK_R,SDLK_F,SDLK_C,
-    };
+    SDL_Keycode key_map[16];
+    key_map[0x1]=SDLK_1;key_map[0x2]=SDLK_2;key_map[0x3]=SDLK_3;key_map[0xC]=SDLK_4;
+    key_map[0x4]=SDLK_Q;key_map[0x5]=SDLK_W;key_map[0x6]=SDLK_E;key_map[0xD]=SDLK_R;
+    key_map[0x7]=SDLK_A;key_map[0x8]=SDLK_S;key_map[0x9]=SDLK_D;key_map[0xE]=SDLK_F;
+    key_map[0xA]=SDLK_Z;key_map[0x0]=SDLK_X;key_map[0xB]=SDLK_C;key_map[0xF]=SDLK_V;
 
 
 
