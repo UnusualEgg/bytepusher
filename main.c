@@ -314,7 +314,6 @@ int main(int argc, char const *argv[]) {
             TTF_DrawRendererText(current_ttf_text,(width-text_w)/2,height/2);
         }
         
-        SDL_RenderPresent(r);
         // (0.0166666666667 * 1000) * 1000 * 1000
         //16666666 60fps in ns
         // 1000000000 / 61
@@ -323,11 +322,12 @@ int main(int argc, char const *argv[]) {
         SDL_Time now=0;
         SDL_GetCurrentTime(&now);
         diff = now-ticks;
-        const SDL_Time wait = 16393442;
-        if (diff<wait) {
-            SDL_DelayNS(wait-diff);     
-            // printf("%lu\n",wait-diff);
+        const SDL_Time frame_at_61fps = 16393442;
+        if (diff<frame_at_61fps) {
+            SDL_DelayNS(frame_at_61fps-diff);     
+            // printf("%lu\n",frame_at_61fps-diff);
         } 
+        SDL_RenderPresent(r);
         SDL_GetCurrentTime(&ticks);
         diff_real = ticks-old_ticks;
         SDL_GetCurrentTime(&old_ticks);
