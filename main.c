@@ -1,21 +1,23 @@
+#include <SDL3/SDL_audio.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #define SDL_DISABLE_OLD_NAMES
 #include <SDL3/SDL.h>
 #include "SDL3_ttf/include/SDL3_ttf/SDL_ttf.h"
+#include <SDL3/SDL_audio.h>
 
 #define VM_SIZE 256
 
-SDL_FRect get_letterbox(int width, int height) {
+inline SDL_FRect get_letterbox(int width, int height) {
     if (width>height) {
         //space sides out
-        float space = (width-height)/2;
+        float space = (width-height)/2.0;
         SDL_FRect r = {.x=space,.y=0,.w=height,.h=height};
         return r;
     } else {
         //space top and bottom out
-        float space = (height-width)/2;
+        float space = (height-width)/2.0;
         SDL_FRect r = {.x=0,.y=space,.w=width,.h=width};
         return r;
     }
@@ -31,7 +33,7 @@ void update_texture(SDL_Texture *tex_vm, uint8_t *buffer,const SDL_Color *palett
     
 }
 void update_texture_mem(SDL_Texture *tex_vm, uint8_t *mem,const SDL_Color *palette) {
-    size_t i = ((int)mem[5])<<16;//0xXX0000
+    size_t i = ((size_t)mem[5])<<16;//0xXX0000
     update_texture(tex_vm,mem+i,palette);
 }
 void init_palette(SDL_Color *palette) {
@@ -88,11 +90,14 @@ size_t file_len(FILE* f) {
 
 SDL_Window *w=NULL;
 SDL_Texture *tex_vm=NULL;
+SDL_AudioStream *stream;
 void cb_sdl(void) {
     if (tex_vm)
         SDL_DestroyTexture(tex_vm);
     if (w)
         SDL_DestroyWindow(w);
+    if (stream)
+        SDL_DestroyAudioStream(stream);
     SDL_Quit();
 }
 TTF_TextEngine *text_engine=NULL;
@@ -126,25 +131,32 @@ int main(int argc, char const *argv[]) {
     const char* MESSAGE_DROP = "Drop a file onto this window";
     const char* MESSAGE_BIG = "File too large!";
     const char* message = MESSAGE_DROP;
+    bool muted=false;
     //parse args for file
     if (argc>1) {
-        const char* fn = argv[1];
-        printf("opening file: %s\n",fn);
-        FILE *f = fopen(fn,"r");
-        if (!f) {
-            perror("bytepusher");
-            return EXIT_FAILURE;
+        for (size_t i=1;argv[i];i++) {
+            if (argv[i][0]=='-' && argv[i][1]=='m') {
+                muted=true;
+                continue;
+            }
+            const char* fn = argv[i];
+            printf("opening file: %s\n",fn);
+            FILE *f = fopen(fn,"r");
+            if (!f) {
+                perror("bytepusher");
+                return EXIT_FAILURE;
+            }
+            
+            size_t len = file_len(f);
+            if (len>RAM_SIZE) {
+                message=MESSAGE_BIG;
+            } else {
+                //load the file
+                fread(mem,1,len,f);
+                playing=true;
+            }
+            fclose(f);
         }
-        
-        size_t len = file_len(f);
-        if (len>RAM_SIZE) {
-            message=MESSAGE_BIG;
-        } else {
-            //load the file
-            fread(mem,1,len,f);
-            playing=true;
-        }
-        fclose(f);
     }
 
     
@@ -164,6 +176,22 @@ int main(int argc, char const *argv[]) {
         return EXIT_FAILURE;
     }
     atexit(cb_sdl);
+
+    //no callbck so we have to call SDL_PutAudioStreamData
+    const SDL_AudioSpec spec = {
+        .channels=1,//mono
+        .freq=256*60,//256 samples per frame(60fps)
+        .format=SDL_AUDIO_S8,
+    };
+    stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, NULL, NULL);
+    if (!stream) {
+        fprintf(stderr,"SDL Error: %s\n",SDL_GetError());
+        return EXIT_FAILURE;
+    }
+    SDL_AudioSpec real_spec;
+    SDL_GetAudioStreamFormat(stream, &real_spec, NULL);
+    printf("Real spec: channels: %d, freq: %d, fomat: %s\n",real_spec.channels,real_spec.freq,SDL_GetAudioFormatName(real_spec.format));
+    SDL_ResumeAudioStreamDevice(stream);
     
     SDL_Renderer *r;
     result = SDL_CreateWindowAndRenderer("BytePusher Emulator :D",VM_SIZE,VM_SIZE,SDL_WINDOW_RESIZABLE,&w,&r);
@@ -271,10 +299,9 @@ int main(int argc, char const *argv[]) {
 
         if (playing) {
             size_t pc=read_24BE_to_LE(mem,2);
-            for (int i=0;i<65536;i++) {
+            for (size_t i=0;i<65536;i++) {
                 //24 bits
                 // Copy 1 byte from A to B, then jump to C. 
-                uint8_t *pc_ptr = &mem[pc];
                 size_t a = read_24BE_to_LE(mem,pc+0);
                 size_t b = read_24BE_to_LE(mem,pc+3);
                 size_t c = read_24BE_to_LE(mem,pc+6);
@@ -286,17 +313,28 @@ int main(int argc, char const *argv[]) {
                 // SDL_Delay(500);
             }
             update_texture_mem(tex_vm,mem,palette);
-            //TODO audio
+            //audio
+            if (!muted) {
+                size_t audio_addr = (((size_t)mem[6])<<16)|(((size_t)mem[6+1])<<8);
+                // printf("%lu\n",audio_addr);
+                SDL_PutAudioStreamData(stream,&mem[audio_addr],256);
+                result = SDL_FlushAudioStream(stream);
+                if (!result) {
+                    fprintf(stderr,"SDL Error: %s\n",SDL_GetError());
+                    return EXIT_FAILURE;
+                }
+            }
         }
 
 
         //draw
-        SDL_SetRenderDrawColor(r,0,0,0,SDL_ALPHA_OPAQUE);
-        SDL_RenderClear(r);
+        // SDL_SetRenderDrawColor(r,0,0,0,SDL_ALPHA_OPAQUE);
+        // SDL_RenderClear(r);
 
         SDL_RenderTexture(r,tex_vm,NULL,&letterbox_rect);
         //get fps
         // double fps = (double)1000000000.0/(double)diff_real;
+        // printf("fps: %d\n",(int)fps);
         // char buf[10] = {0};
         // int len = snprintf(buf,10,"%lf",fps);
         // TTF_Text *fps_text = TTF_CreateText(text_engine,FONT,buf,len);
@@ -311,9 +349,10 @@ int main(int argc, char const *argv[]) {
             }
             int text_w,text_h;
             TTF_GetStringSize(FONT,message,strlen(message),&text_w,&text_h);
-            TTF_DrawRendererText(current_ttf_text,(width-text_w)/2,height/2);
+            TTF_DrawRendererText(current_ttf_text,(width-text_w)/2.0,height/2.0);
         }
         
+        //cap at 60fps by waiting for 1frame(@60fps) then waiting for vsync
         // (0.0166666666667 * 1000) * 1000 * 1000
         //16666666 60fps in ns
         // 1000000000 / 61
@@ -329,8 +368,8 @@ int main(int argc, char const *argv[]) {
         } 
         SDL_RenderPresent(r);
         SDL_GetCurrentTime(&ticks);
-        diff_real = ticks-old_ticks;
-        SDL_GetCurrentTime(&old_ticks);
+        // diff_real = ticks-old_ticks;
+        // SDL_GetCurrentTime(&old_ticks);
     }
     return EXIT_SUCCESS;
 }
